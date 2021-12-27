@@ -38,13 +38,12 @@ private:
 
     class Event {
     public:
-        Event(EventsStatisticWithClock* stat, std::string_view name);
+        Event(Clock::TimePoint tp, std::string_view name);
+
+        [[nodiscard]] std::string_view name() const noexcept;
         [[nodiscard]] Clock::Duration timePassed(Clock::TimePoint now) const noexcept;
 
-        ~Event() noexcept(false);
-
     private:
-        EventsStatisticWithClock* _stat;
         std::string_view _name;
         Clock::TimePoint startTp;
     };

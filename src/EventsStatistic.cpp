@@ -17,7 +17,12 @@ EventsStatisticWithClock::EventsStatisticWithClock(std::shared_ptr<Clock> clock,
 
 void EventsStatisticWithClock::incEvent(std::string_view name) {
     cleanOld();
-    _events.emplace_back(this, name);
+    auto it = _counter.find(name);
+    if (it == _counter.end()) {
+        it = _counter.emplace(name, EventCounter{}).first;
+    }
+    _events.emplace_back(_clock->now(), it->first);
+    it->second.addToPeriod();
 }
 
 float EventsStatisticWithClock::getEventStatisticByName(std::string_view name) {
@@ -48,31 +53,20 @@ void EventsStatisticWithClock::printStatistic() {
 }
 
 void EventsStatisticWithClock::cleanOld() {
-    std::erase_if(_events, [&clock = _clock, duration = _statisticDuration](Event const& e) {
-        return e.timePassed(clock->now()) > duration;
-    });
+    while (!_events.empty() && _events.front().timePassed(_clock->now()) > _statisticDuration) {
+        _counter.find(_events.front().name())->second.removeFromPeriod();
+        _events.pop_front();
+    }
 }
 
-EventsStatisticWithClock::Event::Event(EventsStatisticWithClock* stat, std::string_view name)
-    : _stat{stat}, _name{name}, startTp{_stat->_clock->now()} {
-    auto it = _stat->_counter.find(_name);
-    if (it == _stat->_counter.end()) {
-        it    = _stat->_counter.emplace(_name, EventCounter{}).first;
-        _name = it->first;
-    }
-    it->second.addToPeriod();
+EventsStatisticWithClock::Event::Event(Clock::TimePoint tp, std::string_view name) : _name{name}, startTp{tp} {}
+
+std::string_view EventsStatisticWithClock::Event::name() const noexcept {
+    return _name;
 }
 
 Clock::Duration EventsStatisticWithClock::Event::timePassed(Clock::TimePoint now) const noexcept {
     return now - startTp;
-}
-
-EventsStatisticWithClock::Event::~Event() noexcept(false) {
-    auto it = _stat->_counter.find(_name);
-    if (it == _stat->_counter.end()) {
-        throw std::runtime_error("Removing unexisting element");
-    }
-    it->second.removeFromPeriod();
 }
 
 EventsStatisticWithClock::EventCounter::EventCounter() : _all{0}, _period{0} {}
